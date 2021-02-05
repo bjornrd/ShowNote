@@ -32,10 +32,6 @@ w = createWindow(Fs_r,...
                  'overlap_percentage', 0.5, ...
                  'window_type', @hamming);
 
-window_length_ms = w.length_t;
-window_length_N  = w.length_N;  % Number of samples in the window
-window_skip = w.skip_N;
-
 
 %% Set up time and frequency vector
 Nfft = 2^(ceil( log2(Fs_r/2/f_resolution_max) ));
@@ -45,18 +41,19 @@ f = linspace(0, Fs_r/2, Nfft);
 
 %% Loop and analyze the data
 % figure(100);
-window_pos = 1;
-t_sample = [];
+frame_pos = 1;
+t_frame = []; % frame start timestamps
 i=1;
-while window_pos + window_length_N - 1 < N_audio_samples
-    t_sample(i) = t(window_pos);
+
+while frame_pos +  w.length_N - 1 < N_audio_samples
+    t_frame(i) = t(frame_pos);
     
-    data_to_analyze = y_r(window_pos : window_pos + window_length_N - 1, channel_to_analyze);
+    data_to_analyze = y_r(frame_pos : frame_pos +  w.length_N - 1, channel_to_analyze);
     
     [detected_frequencies(i), ~, spect_log(i,:)] = spectralPitchDetector(data_to_analyze, w, Nfft, f);
     
     detected_keys{i} = pitchToKey(detected_frequencies(i), 440);
-    window_pos = window_pos + window_skip;
+    frame_pos = frame_pos + w.skip_N;
     i=i+1;
 end
 
@@ -68,6 +65,6 @@ axis tight;
 title('Spectrum');
 
 figure(22); clf;
-plot(t_sample, detected_frequencies);
+plot(t_frame, detected_frequencies);
 grid on;
 title('Detected Pitch');
