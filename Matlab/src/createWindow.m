@@ -5,7 +5,7 @@ p = inputParser();
 
 p.addOptional('length_t',           100e-3, @mustBeNonnegative);
 p.addOptional('overlap_percentage', 0.5,    @(x)isBetween(x, 0, 1) );
-p.addOptional('window_type', @hamming);
+p.addOptional('window_type',        @hamming);
 
 p.parse(varargin{:});
 
