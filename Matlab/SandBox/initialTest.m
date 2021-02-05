@@ -1,56 +1,73 @@
 % Initial test script to import, play and analyze audio  
 
-channel_to_analyze = 1;
+clear;
 
+channel_to_analyze = 1;
+f_resolution_max = 10; % [Hz]
 
 %% Import 
 script_path = mfilepath();
-filepath     = fullfile(script_path, '..', '..', 'Resources', 'Audio Files', 'C to B single notes.m4a'); 
+addpath(fullfile(script_path, '..', 'src/'));
 
-[y, Fs] = audioread(filepath);
+audio_filepath    = fullfile(script_path, '..', '..', 'Resources', 'Audio Files', 'C to B single notes.m4a'); 
 
-N_audio_samples = length(y);
-N_channels      = size(y, 2);
+[y, Fs] = audioread(audio_filepath);
+
+%% Resample
+Fs_r = 16e3;
+[n,d] = rat(Fs_r/Fs);
+y_r = resample(y, n, d);
+
+
+N_audio_samples = size(y_r, 1);
+N_channels      = size(y_r, 2);
 
 % We can create an audioplayer and play the imported file
 % player = audioplayer(y, Fs);
 % player.play();
 
 %% Set up analysis window
-Fms = Fs/1e3; % Sampling frequency relative to miliseconds (samples per milisecond)
+w = createWindow(Fs_r,...
+                 'length_t', 50e-3, ...
+                 'overlap_percentage', 0.5, ...
+                 'window_type', @hamming);
 
-window_length_ms = 50;  % Window length in miliseconds
-window_length_N  = round(Fms*window_length_ms);  % Number of samples in the window
+window_length_ms = w.length_t;
+window_length_N  = w.length_N;  % Number of samples in the window
+window_skip = w.skip_N;
 
-window_overlap_percentage = 0.5;
-window_skip = round( window_length_N*window_overlap_percentage );
-
-window_pos = 1;
 
 %% Set up time and frequency vector
-Nfft = 2^13;
-t = 0:1/Fs:N_audio_samples/Fs;
-f = linspace(0, Fs/2, Nfft);
-
-%% Hamming smoothing window
-w = hamming(window_length_N);
+Nfft = 2^(ceil( log2(Fs_r/2/f_resolution_max) ));
+t = 0:1/Fs_r:N_audio_samples/Fs_r;
+f = linspace(0, Fs_r/2, Nfft);
 
 
 %% Loop and analyze the data
-% figure(1);
+% figure(100);
+window_pos = 1;
+t_sample = [];
 i=1;
 while window_pos + window_length_N - 1 < N_audio_samples
+    t_sample(i) = t(window_pos);
     
-    data_to_analyze = y(window_pos : window_pos + window_length_N - 1, channel_to_analyze);
+    data_to_analyze = y_r(window_pos : window_pos + window_length_N - 1, channel_to_analyze);
     
-    spect = fftshift(fft(w.*data_to_analyze, Nfft*2));
-    spect_log(i,:) = 20*log10(abs(spect(Nfft+1:end-Nfft*3/4))+eps);
-
+    [detected_frequencies(i), ~, spect_log(i,:)] = spectralPitchDetector(data_to_analyze, w, Nfft, f);
     
+    detected_keys{i} = pitchToKey(detected_frequencies(i), 440);
     window_pos = window_pos + window_skip;
     i=i+1;
 end
 
-figure;surf(f(1:end-Nfft*3/4), 1:size(spect_log,1), spect_log)
+figure(11);clf;
+surf(f(1:end), 1:size(spect_log,1), spect_log)
 shading interp
 view([90 -90])
+axis tight;
+title('Spectrum');
+
+figure(22); clf;
+plot(t_sample, detected_frequencies);
+grid on;
+title('Detected Pitch');
